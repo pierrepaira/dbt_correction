@@ -1,17 +1,11 @@
 name: CI
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   dbt_ci:
     runs-on: ubuntu-latest
     env:
-      # Seul secret requis
       GCP_KEYFILE_JSON: ${{ secrets.GCP_KEYFILE_JSON }}
 
     steps:
@@ -33,9 +27,9 @@ jobs:
             outputs:
               dev:
                 type: bigquery
-                method: service-account-json       # ← IMPORTANT
-                project: bubbly-granite-456918-p0  # ← en clair
-                dataset: FIL_ROUGE                 # ← en clair
+                method: service-account-json
+                project: bubbly-granite-456918-p0
+                dataset: FIL_ROUGE
                 threads: 4
                 keyfile_json: "{{ env_var('GCP_KEYFILE_JSON') }}"
           YAML
