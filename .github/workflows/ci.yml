@@ -32,7 +32,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install "dbt-bigquery~=1.9" \
                 "sqlfluff~=3.4" \
-                "dbt-unit-testing>=0.5.0"
+                "dbt_unit_testing>=0.5.0"
 
     # ──────────────────────────────────────────────────────────────
     # 1) Écrire la clé dans un fichier sécurisé
