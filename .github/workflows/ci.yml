@@ -1,4 +1,4 @@
-name: blank
+name: ci
 
 on:
   push:
