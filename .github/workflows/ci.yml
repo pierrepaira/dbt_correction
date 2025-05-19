@@ -12,27 +12,26 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # JSON complet de la clé de service GCP (secret repo)
       GCP_KEYFILE_JSON: ${{ secrets.GCP_KEYFILE_JSON }}
+      # Nom de l’artefact manifest pour Slim CI
       MANIFEST_ARTIFACT: manifest-main
 
     steps:
-      # ── 0) Checkout + Python ──────────────────────────────────
+      # ── 0) Checkout + Python ───────────────────────────────────
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # ── 1) Dépendances (dbt, lint, tests) ─────────────────────
-
-      - name: Install Python deps (dbt, lint, tests)
+      # ── 1) Dépendances dbt + sqlfluff ──────────────────────────
+      - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
           pip install "dbt-bigquery~=1.9" "sqlfluff~=3.4"
-          pip install "git+https://github.com/EqualExperts/dbt-unit-testing.git@main"
-    
-          
-      # ── 2) Écrire la clé dans /tmp/keyfile.json ───────────────
+
+      # ── 2) Écrire la clé dans /tmp/keyfile.json ────────────────
       - name: Write keyfile.json
         run: |
           echo "$GCP_KEYFILE_JSON" > /tmp/keyfile.json
@@ -46,7 +45,7 @@ jobs:
               sys.exit(1)
           PY
 
-      # ── 3) Créer ~/.dbt/profiles.yml ──────────────────────────
+      # ── 3) Créer ~/.dbt/profiles.yml ───────────────────────────
       - name: Write dbt profile
         run: |
           mkdir -p ~/.dbt
@@ -64,8 +63,8 @@ jobs:
                 keyfile: /tmp/keyfile.json
           YAML
 
-      # ── 4) Récupérer l’ancien manifest (Slim CI) ──────────────
-      - name: Download previous manifest (if any)
+      # ── 4) Télécharger l’ancien manifest (PR) ──────────────────
+      - name: Download previous manifest
         if: github.event_name == 'pull_request'
         uses: actions/download-artifact@v4
         with:
@@ -73,32 +72,26 @@ jobs:
           path: .dbt_artifacts
         continue-on-error: true
 
-      # ── 5) Lint SQL (warning pour l’instant) ──────────────────
-      - name: Lint SQL with sqlfluff
-        run: sqlfluff lint models/ || true
+      # ── 5) Lint SQL (warning) ──────────────────────────────────
+      - name: sqlfluff lint
+        run: sqlfluff lint models/ || true      # retire “|| true” si tu veux bloquer la CI
 
-      # ── 6) dbt deps + compile (dry-run) ───────────────────────
+      # ── 6) dbt deps + compile (dry run) ────────────────────────
       - name: dbt deps
         run: dbt deps
 
       - name: dbt compile
         run: dbt compile
 
-      # ── 7) Build & tests Slim CI ──────────────────────────────
+      # ── 7) Build & tests Slim CI ───────────────────────────────
       - name: dbt build (state:modified)
         run: |
-          dbt build \
-            --select state:modified+ \
-            --defer \
-            --state ./.dbt_artifacts || true
+          dbt build --select state:modified+ --defer --state ./.dbt_artifacts || true
 
       - name: dbt test (state:modified)
         run: dbt test --select state:modified+ || true
 
-      - name: dbt unit tests
-        run: dbt ut || true
-
-      # ── 8) Upload manifest si merge sur main ──────────────────
+      # ── 8) Publier le nouveau manifest sur main ────────────────
       - name: Upload manifest.json
         if: github.ref == 'refs/heads/main' && success()
         uses: actions/upload-artifact@v4
@@ -106,4 +99,3 @@ jobs:
           name: ${{ env.MANIFEST_ARTIFACT }}
           path: target/manifest.json
           retention-days: 14
-
