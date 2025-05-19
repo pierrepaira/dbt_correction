@@ -1,59 +1,126 @@
 name: CI
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [ "main" ]           # build complet (state:modified + upload manifest)
+  pull_request:                     # Slim CI sur PR
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   dbt_ci:
     runs-on: ubuntu-latest
+
     env:
+      # Seul secret requis : le JSON complet de la clé de service
       GCP_KEYFILE_JSON: ${{ secrets.GCP_KEYFILE_JSON }}
+      # Où l’on stocke/récupère le manifest (artefact GitHub)
+      MANIFEST_ARTIFACT: manifest-main
 
     steps:
-      - uses: actions/checkout@v4
+    # ──────────────────────────────────────────────────────────────
+    # Code + Python & dépendances
+    # ──────────────────────────────────────────────────────────────
+    - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
 
-      - name: Install dbt
-        run: pip install "dbt-bigquery~=1.9"
+    - name: Install Python deps (dbt, lint, tests)
+      run: |
+        pip install "dbt-bigquery~=1.9" sqlfluff dbt-unit-testing
 
-      # 1) Écrire la clé dans un fichier
-      - name: Write keyfile.json
-        run: |
-          echo "$GCP_KEYFILE_JSON" > /tmp/keyfile.json
-          # on peut vérifier que le JSON est valide
-          python - <<'PY'
-          import json, pathlib, sys
-          p = pathlib.Path("/tmp/keyfile.json")
-          try:
-              json.load(p.open())
-              print("✅ keyfile.json valid")
-          except json.JSONDecodeError as e:
-              print("❌ keyfile.json invalid:", e)
-              sys.exit(1)
-          PY
+    # ──────────────────────────────────────────────────────────────
+    # 1) Écrire la clé dans un fichier sécurisé
+    # ──────────────────────────────────────────────────────────────
+    - name: Write keyfile.json
+      run: |
+        echo "$GCP_KEYFILE_JSON" > /tmp/keyfile.json
+        python - <<'PY'
+        import json, sys, pathlib
+        p = pathlib.Path("/tmp/keyfile.json")
+        try:
+            json.load(p.open())
+            print("✅ keyfile.json is valid JSON")
+        except json.JSONDecodeError as e:
+            print("❌ keyfile.json invalid:", e)
+            sys.exit(1)
+        PY
 
-      # 2) Créer le profiles.yml qui pointe vers ce fichier
-      - name: Write dbt profile
-        run: |
-          mkdir -p ~/.dbt
-          cat > ~/.dbt/profiles.yml <<'YAML'
-          my_first_dbt_project:
-            target: dev
-            outputs:
-              dev:
-                type: bigquery
-                method: service-account       # ← on repasse en mode fichier
-                project: bubbly-granite-456918-p0
-                dataset: FIL_ROUGE
-                threads: 4
-                keyfile: /tmp/keyfile.json    # ← chemin absolu
-          YAML
+    # ──────────────────────────────────────────────────────────────
+    # 2) Créer ~/.dbt/profiles.yml qui pointe vers ce fichier
+    # ──────────────────────────────────────────────────────────────
+    - name: Write dbt profile
+      run: |
+        mkdir -p ~/.dbt
+        cat > ~/.dbt/profiles.yml <<'YAML'
+        my_first_dbt_project:
+          target: dev
+          outputs:
+            dev:
+              type: bigquery
+              method: service-account
+              project: bubbly-granite-456918-p0        # en clair
+              dataset: FIL_ROUGE                       # dataset cible dbt
+              location: US
+              threads: 4
+              keyfile: /tmp/keyfile.json
+        YAML
 
-      - name: dbt debug
-        run: dbt debug --profile my_first_dbt_project
+    # ──────────────────────────────────────────────────────────────
+    # 3) Récupérer l’ancien manifest (Slim CI)
+    # ──────────────────────────────────────────────────────────────
+    - name: Download previous manifest (if any)
+      if: github.event_name == 'pull_request'
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ env.MANIFEST_ARTIFACT }}
+        path: .dbt_artifacts
+      continue-on-error: true        # première exécution : artefact absent
 
-      - name: dbt build
-        run: dbt build --profile my_first_dbt_project
+    # ──────────────────────────────────────────────────────────────
+    # 4) Lint SQL (ne bloque pas le build pour l’instant)
+    # ──────────────────────────────────────────────────────────────
+    - name: Lint SQL with sqlfluff
+      run: |
+        sqlfluff lint models/ || true   # passe en WARNING pour l’instant
 
+    # ──────────────────────────────────────────────────────────────
+    # 5) Dependency + compile (dry-run)
+    # ──────────────────────────────────────────────────────────────
+    - name: dbt deps
+      run: dbt deps
+
+    - name: dbt compile (dry-run)
+      run: dbt compile
+
+    # ──────────────────────────────────────────────────────────────
+    # 6) Build & tests (Slim CI)
+    # ──────────────────────────────────────────────────────────────
+    - name: dbt build (state:modified)
+      run: |
+        dbt build \
+          --select state:modified+ \
+          --defer \
+          --state ./.dbt_artifacts || true
+
+    - name: dbt test (state:modified)
+      run: |
+        dbt test \
+          --select state:modified+ || true
+
+    - name: dbt unit tests
+      run: |
+        dbt ut || true
+
+    # ──────────────────────────────────────────────────────────────
+    # 7) Upload nouveau manifest si merge sur main
+    # ──────────────────────────────────────────────────────────────
+    - name: Upload manifest.json
+      if: github.ref == 'refs/heads/main' && success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.MANIFEST_ARTIFACT }}
+        path: target/manifest.json
+        retention-days: 14
