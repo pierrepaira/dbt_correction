@@ -10,20 +10,9 @@ on:
 jobs:
   dbt_ci:
     runs-on: ubuntu-latest
-    env:
-      GCP_SERVICE_ACCOUNT_TYPE: ${{ secrets.GCP_SERVICE_ACCOUNT_TYPE }}
-      GCP_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.GCP_SERVICE_ACCOUNT_PROJECT_ID }}
-      GCP_SERVICE_ACCOUNT_PRIVATE_KEY_ID: ${{ secrets.GCP_SERVICE_ACCOUNT_PRIVATE_KEY_ID }}
-      GCP_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_PRIVATE_KEY }}
-      GCP_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_CLIENT_EMAIL }}
-      GCP_SERVICE_ACCOUNT_CLIENT_ID: ${{ secrets.GCP_SERVICE_ACCOUNT_CLIENT_ID }}
-      GCP_SERVICE_ACCOUNT_AUTH_URI: ${{ secrets.GCP_SERVICE_ACCOUNT_AUTH_URI }}
-      GCP_SERVICE_ACCOUNT_TOKEN_URI: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN_URI }}
-      GCP_SERVICE_ACCOUNT_AUTH_PROVIDER_X509_CERT_URL: ${{ secrets.GCP_SERVICE_ACCOUNT_AUTH_PROVIDER_X509_CERT_URL }}
-      GCP_SERVICE_ACCOUNT_CLIENT_X509_CERT_URL: ${{ secrets.GCP_SERVICE_ACCOUNT_CLIENT_X509_CERT_URL }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -34,7 +23,7 @@ jobs:
       - name: Install dbt
         run: pip install dbt-core dbt-bigquery
 
-      - name: Create profiles.yml
+      - name: Create profiles.yml from secrets
         run: |
           cat <<EOF > profiles.yml
           my_first_dbt_project:
@@ -63,6 +52,9 @@ jobs:
                     "client_x509_cert_url": "${GCP_SERVICE_ACCOUNT_CLIENT_X509_CERT_URL}"
                   }
           EOF
+
+      - name: Debug profiles.yml (temporaire)
+        run: cat profiles.yml
 
       - name: Install dbt dependencies
         run: dbt deps
