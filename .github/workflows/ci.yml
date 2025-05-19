@@ -1,18 +1,18 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:
 
 jobs:
   dbt_ci:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -23,14 +23,24 @@ jobs:
       - name: Install dbt
         run: pip install dbt-core dbt-bigquery
 
-      - name: Create profiles.yml from secret
-        run: echo "${{ secrets.PROFILES_YML }}" > profiles.yml
+      - name: Create profiles.yml with injected keyfile
+        run: |
+          echo 'my_first_dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "bubbly-granite-456918-p0"
+      dataset: "FIL_ROUGE"
+      threads: 1
+      timeout_seconds: 300
+      location: "US"
+      priority: interactive
+      keyfile_json: '"'"'${{ secrets.GCP_KEYFILE_JSON }}'"'"'' > profiles.yml
 
-      - name: Debug profile
-        run: cat profiles.yml
-
-      - name: Run dbt debug
+      - name: Test connection
         run: dbt debug --profiles-dir . --profile my_first_dbt_project
 
-      - name: Run dbt build
+      - name: Build models
         run: dbt build --profiles-dir . --profile my_first_dbt_project
