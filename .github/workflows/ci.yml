@@ -37,10 +37,12 @@ jobs:
       timeout_seconds: 300
       location: US
       priority: interactive
-      keyfile_json: '${{ secrets.GCP_KEYFILE_JSON }}'" > profiles.yml
+      keyfile_json: '${{ secrets.GCP_KEYFILE_JSON }}'
+" > profiles.yml
 
       - name: Test dbt connection
         run: dbt debug --profiles-dir . --profile my_first_dbt_project
 
       - name: Run dbt build
         run: dbt build --profiles-dir . --profile my_first_dbt_project
+
