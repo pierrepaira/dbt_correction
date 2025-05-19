@@ -23,11 +23,12 @@ jobs:
       - name: Install dbt
         run: pip install dbt-core dbt-bigquery
 
-      - name: Create profiles.yml
+      - name: Create profiles.yml from secret
         run: echo "${{ secrets.PROFILES_YML }}" > profiles.yml
 
       - name: Install dbt dependencies
         run: dbt deps
 
       - name: Run dbt build
-        run: dbt build --profiles-dir .
+        run: dbt build --profiles-dir . --profile my_first_dbt_project
+
