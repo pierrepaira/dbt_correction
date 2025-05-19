@@ -1,11 +1,11 @@
 name: CI
 
 on:
-  workflow_dispatch:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   dbt_ci:
@@ -25,22 +25,22 @@ jobs:
 
       - name: Create profiles.yml with injected keyfile
         run: |
-          echo 'my_first_dbt_project:
+          echo "my_first_dbt_project:
   target: dev
   outputs:
     dev:
       type: bigquery
       method: service-account
-      project: "bubbly-granite-456918-p0"
-      dataset: "FIL_ROUGE"
+      project: bubbly-granite-456918-p0
+      dataset: FIL_ROUGE
       threads: 1
       timeout_seconds: 300
-      location: "US"
+      location: US
       priority: interactive
-      keyfile_json: '"'"'${{ secrets.GCP_KEYFILE_JSON }}'"'"'' > profiles.yml
+      keyfile_json: '${{ secrets.GCP_KEYFILE_JSON }}'" > profiles.yml
 
-      - name: Test connection
+      - name: Test dbt connection
         run: dbt debug --profiles-dir . --profile my_first_dbt_project
 
-      - name: Build models
+      - name: Run dbt build
         run: dbt build --profiles-dir . --profile my_first_dbt_project
