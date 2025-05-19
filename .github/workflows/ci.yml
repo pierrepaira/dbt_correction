@@ -13,11 +13,28 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dbt
         run: pip install "dbt-bigquery~=1.9"
 
+      # 1) Écrire la clé dans un fichier
+      - name: Write keyfile.json
+        run: |
+          echo "$GCP_KEYFILE_JSON" > /tmp/keyfile.json
+          # on peut vérifier que le JSON est valide
+          python - <<'PY'
+          import json, pathlib, sys
+          p = pathlib.Path("/tmp/keyfile.json")
+          try:
+              json.load(p.open())
+              print("✅ keyfile.json valid")
+          except json.JSONDecodeError as e:
+              print("❌ keyfile.json invalid:", e)
+              sys.exit(1)
+          PY
+
+      # 2) Créer le profiles.yml qui pointe vers ce fichier
       - name: Write dbt profile
         run: |
           mkdir -p ~/.dbt
@@ -27,11 +44,11 @@ jobs:
             outputs:
               dev:
                 type: bigquery
-                method: service-account-json
+                method: service-account       # ← on repasse en mode fichier
                 project: bubbly-granite-456918-p0
                 dataset: FIL_ROUGE
                 threads: 4
-                keyfile_json: "{{ env_var('GCP_KEYFILE_JSON') }}"
+                keyfile: /tmp/keyfile.json    # ← chemin absolu
           YAML
 
       - name: dbt debug
