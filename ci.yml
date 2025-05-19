@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  dbt_ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dbt
+        run: pip install dbt-core dbt-bigquery
+
+      - name: Create profiles.yml from secrets
+        run: |
+          echo -e "my_first_dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: ${GCP_SERVICE_ACCOUNT_TYPE}
+      method: service-account
+      project: ${GCP_SERVICE_ACCOUNT_PROJECT_ID}
+      dataset: FIL_ROUGE
+      threads: 1
+      timeout_seconds: 300
+      location: US
+      priority: interactive
+      keyfile_json: |
+        {
+          \"type\": \"${GCP_SERVICE_ACCOUNT_TYPE}\",
+          \"project_id\": \"${GCP_SERVICE_ACCOUNT_PROJECT_ID}\",
+          \"private_key_id\": \"${GCP_SERVICE_ACCOUNT_PRIVATE_KEY_ID}\",
+          \"private_key\": \"${GCP_SERVICE_ACCOUNT_PRIVATE_KEY}\",
+          \"client_email\": \"${GCP_SERVICE_ACCOUNT_CLIENT_EMAIL}\",
+          \"client_id\": \"${GCP_SERVICE_ACCOUNT_CLIENT_ID}\",
+          \"auth_uri\": \"${GCP_SERVICE_ACCOUNT_AUTH_URI}\",
+          \"token_uri\": \"${GCP_SERVICE_ACCOUNT_TOKEN_URI}\",
+          \"auth_provider_x509_cert_url\": \"${GCP_SERVICE_ACCOUNT_AUTH_PROVIDER_X509_CERT_URL}\",
+          \"client_x509_cert_url\": \"${GCP_SERVICE_ACCOUNT_CLIENT_X509_CERT_URL}\"
+        }" > profiles.yml
+
+      - name: Debug profiles.yml (temporaire)
+        run: cat profiles.yml
+
+      - name: Install dbt dependencies
+        run: dbt deps
+
+      - name: Debug dbt connection
+        run: dbt debug --profiles-dir . --profile my_first_dbt_project
+
+      - name: Run dbt build
+        run: dbt build --profiles-dir . --profile my_first_dbt_project
