@@ -25,40 +25,42 @@ jobs:
 
       - name: Create profiles.yml from secrets
         run: |
-          echo -e "my_first_dbt_project:
-  target: dev
-  outputs:
-    dev:
-      type: ${GCP_SERVICE_ACCOUNT_TYPE}
-      method: service-account
-      project: ${GCP_SERVICE_ACCOUNT_PROJECT_ID}
-      dataset: FIL_ROUGE
-      threads: 1
-      timeout_seconds: 300
-      location: US
-      priority: interactive
-      keyfile_json: |
-        {
-          \"type\": \"${GCP_SERVICE_ACCOUNT_TYPE}\",
-          \"project_id\": \"${GCP_SERVICE_ACCOUNT_PROJECT_ID}\",
-          \"private_key_id\": \"${GCP_SERVICE_ACCOUNT_PRIVATE_KEY_ID}\",
-          \"private_key\": \"${GCP_SERVICE_ACCOUNT_PRIVATE_KEY}\",
-          \"client_email\": \"${GCP_SERVICE_ACCOUNT_CLIENT_EMAIL}\",
-          \"client_id\": \"${GCP_SERVICE_ACCOUNT_CLIENT_ID}\",
-          \"auth_uri\": \"${GCP_SERVICE_ACCOUNT_AUTH_URI}\",
-          \"token_uri\": \"${GCP_SERVICE_ACCOUNT_TOKEN_URI}\",
-          \"auth_provider_x509_cert_url\": \"${GCP_SERVICE_ACCOUNT_AUTH_PROVIDER_X509_CERT_URL}\",
-          \"client_x509_cert_url\": \"${GCP_SERVICE_ACCOUNT_CLIENT_X509_CERT_URL}\"
-        }" > profiles.yml
+          cat <<EOF > profiles.yml
+          my_first_dbt_project:
+            target: dev
+            outputs:
+              dev:
+                type: ${{ secrets.GCP_SERVICE_ACCOUNT_TYPE }}
+                method: service-account
+                project: ${{ secrets.GCP_SERVICE_ACCOUNT_PROJECT_ID }}
+                dataset: FIL_ROUGE
+                threads: 1
+                timeout_seconds: 300
+                location: US
+                priority: interactive
+                keyfile_json: |
+                  {
+                    "type": "${{ secrets.GCP_SERVICE_ACCOUNT_TYPE }}",
+                    "project_id": "${{ secrets.GCP_SERVICE_ACCOUNT_PROJECT_ID }}",
+                    "private_key_id": "${{ secrets.GCP_SERVICE_ACCOUNT_PRIVATE_KEY_ID }}",
+                    "private_key": "${{ secrets.GCP_SERVICE_ACCOUNT_PRIVATE_KEY }}",
+                    "client_email": "${{ secrets.GCP_SERVICE_ACCOUNT_CLIENT_EMAIL }}",
+                    "client_id": "${{ secrets.GCP_SERVICE_ACCOUNT_CLIENT_ID }}",
+                    "auth_uri": "${{ secrets.GCP_SERVICE_ACCOUNT_AUTH_URI }}",
+                    "token_uri": "${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN_URI }}",
+                    "auth_provider_x509_cert_url": "${{ secrets.GCP_SERVICE_ACCOUNT_AUTH_PROVIDER_X509_CERT_URL }}",
+                    "client_x509_cert_url": "${{ secrets.GCP_SERVICE_ACCOUNT_CLIENT_X509_CERT_URL }}"
+                  }
+          EOF
 
       - name: Debug profiles.yml (temporaire)
         run: cat profiles.yml
 
+      - name: Test dbt connection
+        run: dbt debug --profiles-dir . --profile my_first_dbt_project
+
       - name: Install dbt dependencies
         run: dbt deps
-
-      - name: Debug dbt connection
-        run: dbt debug --profiles-dir . --profile my_first_dbt_project
 
       - name: Run dbt build
         run: dbt build --profiles-dir . --profile my_first_dbt_project
